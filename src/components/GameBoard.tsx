@@ -5,7 +5,7 @@ import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { ChamberCard } from './ChamberCard'
 import { useGame } from '@/context/GameContext'
-import { getMyDistributionSummary, getPlayerChambers } from '@/lib/gameLogic'
+import { getPlayerChambers } from '@/lib/gameLogic'
 import type { Declaration, Player } from '@/types/game'
 
 export function GameBoard() {
@@ -17,7 +17,6 @@ export function GameBoard() {
   const me = room.players[myPlayerId]
   const amKeyholder = me?.isKeyholder ?? false
   const amHost = room.hostId === myPlayerId
-  const myDist = getMyDistributionSummary(room, myPlayerId)
   const keyholder = players.find(p => p.isKeyholder)
   const declarationsRevealed = room.declarationsRevealed
   const declaredCount = Object.keys(room.declarations).length
@@ -172,26 +171,23 @@ export function GameBoard() {
         </div>
       </main>
 
-      {/* Bottom bar — my private card distribution (actual cards, not declared) */}
+      {/* Bottom bar — my actual face-down cards revealed to me */}
       <footer className="sticky bottom-0 bg-stone-950/95 backdrop-blur border-t border-border/50 px-4 py-3">
         <div className="max-w-4xl mx-auto flex items-center gap-4 flex-wrap">
-          <span className="text-xs text-muted-foreground uppercase tracking-wider">Your actual cards:</span>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="flex items-center gap-1.5 text-gold-300">
-              <Gem className="w-3.5 h-3.5" />
-              {myDist.gold} gold
-            </span>
-            <span className="flex items-center gap-1.5 text-fire-400">
-              <Flame className="w-3.5 h-3.5" />
-              {myDist.fire} fire
-            </span>
-            <span className="flex items-center gap-1.5 text-slate-400">
-              <Wind className="w-3.5 h-3.5" />
-              {myDist.empty} empty
-            </span>
-            <span className="text-muted-foreground text-xs">({myDist.total} unopened)</span>
+          <span className="text-xs text-muted-foreground uppercase tracking-wider shrink-0">Your cards:</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            {getPlayerChambers(room, myPlayerId)
+              .filter(c => !c.isOpened)
+              .map(c => (
+                <ChamberCard
+                  key={c.id}
+                  chamber={{ ...c, isOpened: true }}
+                  isClickable={false}
+                />
+              ))
+            }
           </div>
-          <div className="ml-auto">
+          <div className="ml-auto shrink-0">
             {me?.role === 'adventurer'
               ? <Badge variant="adventurer"><Sword className="w-3 h-3" /> Adventurer</Badge>
               : <Badge variant="guardian"><Shield className="w-3 h-3" /> Guardian</Badge>
