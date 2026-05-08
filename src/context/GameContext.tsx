@@ -124,6 +124,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
   })
 
   const unsubRef = useRef<(() => void) | null>(null)
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function clearConnectTimeout() {
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current)
+      connectTimeoutRef.current = null
+    }
+  }
+
+  function startConnectTimeout(message: string) {
+    clearConnectTimeout()
+    connectTimeoutRef.current = setTimeout(() => {
+      setState(prev => {
+        if (!prev.isLoading) return prev
+        return { ...prev, isLoading: false, joinError: message }
+      })
+    }, 10_000)
+  }
 
   // Attempt to rejoin stored room on page load (Firebase mode only)
   useEffect(() => {
@@ -138,11 +156,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     unsubRef.current?.()
     if (!db) return
     const unsub = onValue(ref(db, `rooms/${roomId}`), snap => {
+      clearConnectTimeout()
       const raw = snap.val() as Partial<Room> | null
       setState(prev => ({
         ...prev,
         room: raw ? sanitizeRoom(raw) : null,
         isLoading: false,
+        joinError: null,
       }))
     })
     unsubRef.current = unsub
@@ -182,8 +202,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
 
     if (firebaseConfigured && db) {
-      setState(prev => ({ ...prev, isLoading: true }))
-      void set(ref(db!, `rooms/${roomId}`), room).then(() => subscribeToRoom(roomId))
+      setState(prev => ({ ...prev, isLoading: true, joinError: null }))
+      startConnectTimeout(
+        'Could not reach Firebase — check that your Realtime Database has been created and the URL is correct.',
+      )
+      set(ref(db!, `rooms/${roomId}`), room)
+        .then(() => subscribeToRoom(roomId))
+        .catch((err: Error) => {
+          clearConnectTimeout()
+          setState(prev => ({
+            ...prev,
+            isLoading: false,
+            joinError: `Failed to create room: ${err.message}`,
+          }))
+        })
     } else {
       setState(prev => ({ ...prev, room }))
     }
@@ -205,10 +237,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!roomId || !trimmedName) return
 
     setState(prev => ({ ...prev, isLoading: true, joinError: null }))
+    startConnectTimeout(
+      'Could not reach Firebase — check that your Realtime Database has been created and the URL is correct.',
+    )
 
     void (async () => {
       try {
         const snap = await get(ref(db!, `rooms/${roomId}`))
+        clearConnectTimeout()
         if (!snap.exists()) {
           setState(prev => ({ ...prev, isLoading: false, joinError: 'Room not found — check the code.' }))
           return
@@ -241,8 +277,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }
         await set(ref(db!, `rooms/${roomId}/players/${state.myPlayerId}`), me)
         subscribeToRoom(roomId)
-      } catch {
-        setState(prev => ({ ...prev, isLoading: false, joinError: 'Failed to join — please try again.' }))
+      } catch (err) {
+        clearConnectTimeout()
+        setState(prev => ({
+          ...prev,
+          isLoading: false,
+          joinError: `Failed to join: ${(err as Error).message}`,
+        }))
       }
     })()
   }
@@ -485,6 +526,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   function resetGame() {
     const room = state.room
+    clearConnectTimeout()
     if (firebaseConfigured && db && room) {
       if (room.hostId === state.myPlayerId) {
         void remove(ref(db, `rooms/${room.id}`))
