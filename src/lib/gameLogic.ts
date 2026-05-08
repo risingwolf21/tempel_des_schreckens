@@ -9,15 +9,16 @@ import type {
   WinCondition,
 } from '@/types/game'
 
+// 5 cards per player; gold/fire counts unchanged, extra empties fill the rest
 const DISTRIBUTIONS: Record<number, PlayerDistribution> = {
-  3:  { adventurers: 2, guardians: 1, gold: 3,  fire: 1, empty: 8,  total: 12 },
-  4:  { adventurers: 3, guardians: 1, gold: 4,  fire: 1, empty: 11, total: 16 },
-  5:  { adventurers: 4, guardians: 1, gold: 5,  fire: 1, empty: 14, total: 20 },
-  6:  { adventurers: 4, guardians: 2, gold: 6,  fire: 2, empty: 16, total: 24 },
-  7:  { adventurers: 5, guardians: 2, gold: 7,  fire: 2, empty: 19, total: 28 },
-  8:  { adventurers: 6, guardians: 2, gold: 8,  fire: 2, empty: 22, total: 32 },
-  9:  { adventurers: 6, guardians: 3, gold: 9,  fire: 3, empty: 24, total: 36 },
-  10: { adventurers: 7, guardians: 3, gold: 10, fire: 3, empty: 27, total: 40 },
+  3:  { adventurers: 2, guardians: 1, gold: 3,  fire: 1, empty: 11, total: 15 },
+  4:  { adventurers: 3, guardians: 1, gold: 4,  fire: 1, empty: 15, total: 20 },
+  5:  { adventurers: 4, guardians: 1, gold: 5,  fire: 1, empty: 19, total: 25 },
+  6:  { adventurers: 4, guardians: 2, gold: 6,  fire: 2, empty: 22, total: 30 },
+  7:  { adventurers: 5, guardians: 2, gold: 7,  fire: 2, empty: 26, total: 35 },
+  8:  { adventurers: 6, guardians: 2, gold: 8,  fire: 2, empty: 30, total: 40 },
+  9:  { adventurers: 6, guardians: 3, gold: 9,  fire: 3, empty: 33, total: 45 },
+  10: { adventurers: 7, guardians: 3, gold: 10, fire: 3, empty: 37, total: 50 },
 }
 
 export function getDistribution(playerCount: number): PlayerDistribution {
@@ -59,7 +60,7 @@ export function buildInitialRoom(
     updatedPlayers[p.id] = { ...p, role: shuffledRoles[i] }
   })
 
-  // Build chamber card pool
+  // Build chamber card pool (5 per player)
   const contentPool: ChamberContent[] = [
     ...Array(dist.gold).fill('gold'),
     ...Array(dist.fire).fill('fire'),
@@ -67,23 +68,14 @@ export function buildInitialRoom(
   ]
   const shuffledContent = shuffle(contentPool)
 
-  // Distribute chambers evenly across players (4 per player = 4 rounds × 1 per round)
+  // Distribute round-robin; use stable index-based IDs so redistribution can update ownerId
   const playerIds = players.map(p => p.id)
-  const cardsPerPlayer = 4 // one per round
   const chambers: Record<string, Chamber> = {}
 
   shuffledContent.forEach((content, idx) => {
     const ownerId = playerIds[idx % players.length]
-    // Each player gets exactly cardsPerPlayer cards
-    // idx order: p0,p1,p2,...,p0,p1,p2,... so each player gets contiguous cards distributed round-robin
-    const chamberIdx = Math.floor(idx / players.length)
-    const id = `${ownerId}-${chamberIdx}`
-    chambers[id] = {
-      id,
-      ownerId,
-      content,
-      isOpened: false,
-    }
+    const id = `ch-${idx}`
+    chambers[id] = { id, ownerId, content, isOpened: false }
   })
 
   // Random first keyholder
@@ -98,6 +90,7 @@ export function buildInitialRoom(
     players: updatedPlayers,
     chambers,
     declarations: {},
+    declarationsRevealed: false,
     currentRound: 1,
     chambersOpenedThisRound: 0,
     goldTotal: dist.gold,
@@ -109,16 +102,26 @@ export function buildInitialRoom(
   }
 }
 
+// Reshuffle all face-down chambers and redistribute evenly to players.
+export function redistributeCards(room: Room): Room {
+  const playerIds = Object.keys(room.players)
+  const N = playerIds.length
+  const faceDown = shuffle(Object.values(room.chambers).filter(c => !c.isOpened))
+
+  const updatedChambers = { ...room.chambers }
+  faceDown.forEach((chamber, idx) => {
+    updatedChambers[chamber.id] = { ...chamber, ownerId: playerIds[idx % N] }
+  })
+
+  return { ...room, chambers: updatedChambers }
+}
+
 export function checkWinCondition(room: Room): { winner: Team; condition: WinCondition } | null {
   if (room.goldFound >= room.goldTotal) {
     return { winner: 'adventurers', condition: 'all-gold' }
   }
   if (room.fireFound >= room.fireTotal) {
     return { winner: 'guardians', condition: 'all-fire' }
-  }
-  const playerCount = Object.keys(room.players).length
-  if (room.currentRound > 4 && room.chambersOpenedThisRound >= playerCount) {
-    return { winner: 'guardians', condition: 'time-up' }
   }
   return null
 }
@@ -151,16 +154,22 @@ export function advanceRound(room: Room): Room {
       winCondition: 'time-up',
     }
   }
+
+  // Reshuffle and redistribute all remaining face-down cards
+  const redistributed = redistributeCards(room)
+
   return {
-    ...room,
+    ...redistributed,
     currentRound: nextRound,
     chambersOpenedThisRound: 0,
     declarations: {},
+    declarationsRevealed: false,
   }
 }
 
+// Cards per player at the start of each round (5 at round 1, decreasing by 1 each round)
 export function cardsPerPlayerThisRound(round: number): number {
-  return 5 - round // round 1=4, round 2=3, round 3=2, round 4=1
+  return 6 - round // round 1=5, round 2=4, round 3=3, round 4=2
 }
 
 export function getPlayerOpenedChamberCount(room: Room, playerId: string): number {

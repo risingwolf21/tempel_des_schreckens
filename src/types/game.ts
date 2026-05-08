@@ -36,6 +36,7 @@ export interface Room {
   players: Record<string, Player>
   chambers: Record<string, Chamber>
   declarations: Record<string, Declaration>
+  declarationsRevealed: boolean
   currentRound: number
   chambersOpenedThisRound: number
   goldTotal: number

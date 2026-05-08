@@ -85,6 +85,7 @@ function sanitizeRoom(raw: Partial<Room>): Room {
     players,
     chambers,
     declarations,
+    declarationsRevealed: raw.declarationsRevealed ?? false,
     currentRound: raw.currentRound ?? 1,
     chambersOpenedThisRound: raw.chambersOpenedThisRound ?? 0,
     goldTotal: raw.goldTotal ?? 0,
@@ -107,6 +108,7 @@ interface GameContextValue {
   confirmRole: () => void
   openChamber: (chamberId: string) => void
   setDeclaration: (d: Declaration) => void
+  revealDeclarations: () => void
   resetToLobby: () => void
   resetGame: () => void
 }
@@ -191,6 +193,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       players: { [me.id]: me },
       chambers: {},
       declarations: {},
+      declarationsRevealed: false,
       currentRound: 1,
       chambersOpenedThisRound: 0,
       goldTotal: 0,
@@ -376,6 +379,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   function openChamber(chamberId: string) {
     const room = state.room
     if (!room) return
+    if (!room.declarationsRevealed) return
 
     const chamber = room.chambers[chamberId]
     if (!chamber || chamber.isOpened) return
@@ -435,9 +439,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
         updates[`rooms/${room.id}/winner`]        = finalRoom.winner
         updates[`rooms/${room.id}/winCondition`]  = finalRoom.winCondition
       }
-      // Clear declarations when the round rolls over or the game ends
+      // When the round rolls over: clear declarations, reset reveal flag, write redistributed ownerIds
       if (finalRoom.currentRound !== room.currentRound || finalRoom.status === 'ended') {
         updates[`rooms/${room.id}/declarations`] = null
+        updates[`rooms/${room.id}/declarationsRevealed`] = false
+      }
+      if (finalRoom.currentRound !== room.currentRound && finalRoom.status !== 'ended') {
+        Object.values(finalRoom.chambers).forEach(c => {
+          if (!c.isOpened) {
+            updates[`rooms/${room.id}/chambers/${c.id}/ownerId`] = c.ownerId
+          }
+        })
       }
       void update(ref(db), updates)
     } else {
@@ -450,6 +462,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   function setDeclaration(d: Declaration) {
     const room = state.room
     if (!room || room.status !== 'playing') return
+    if (room.declarationsRevealed) return
 
     if (firebaseConfigured && db) {
       void set(ref(db, `rooms/${room.id}/declarations/${state.myPlayerId}`), d)
@@ -468,6 +481,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // ── revealDeclarations ──────────────────────────────────────────────────────
+
+  function revealDeclarations() {
+    const room = state.room
+    if (!room || room.status !== 'playing' || room.declarationsRevealed) return
+
+    if (firebaseConfigured && db) {
+      void set(ref(db, `rooms/${room.id}/declarationsRevealed`), true)
+    } else {
+      setState(prev =>
+        prev.room ? { ...prev, room: { ...prev.room, declarationsRevealed: true } } : prev,
+      )
+    }
+  }
+
   // ── resetToLobby ────────────────────────────────────────────────────────────
   // Keeps the current player list, wipes all game state back to lobby.
 
@@ -477,17 +505,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     if (firebaseConfigured && db) {
       const updates: Record<string, unknown> = {
-        [`rooms/${room.id}/status`]:                 'lobby',
-        [`rooms/${room.id}/chambers`]:               null,
-        [`rooms/${room.id}/declarations`]:           null,
-        [`rooms/${room.id}/currentRound`]:           1,
-        [`rooms/${room.id}/chambersOpenedThisRound`]:0,
-        [`rooms/${room.id}/goldTotal`]:              0,
-        [`rooms/${room.id}/goldFound`]:              0,
-        [`rooms/${room.id}/fireTotal`]:              0,
-        [`rooms/${room.id}/fireFound`]:              0,
-        [`rooms/${room.id}/winner`]:                 null,
-        [`rooms/${room.id}/winCondition`]:           null,
+        [`rooms/${room.id}/status`]:                   'lobby',
+        [`rooms/${room.id}/chambers`]:                 null,
+        [`rooms/${room.id}/declarations`]:             null,
+        [`rooms/${room.id}/declarationsRevealed`]:     false,
+        [`rooms/${room.id}/currentRound`]:             1,
+        [`rooms/${room.id}/chambersOpenedThisRound`]:  0,
+        [`rooms/${room.id}/goldTotal`]:                0,
+        [`rooms/${room.id}/goldFound`]:                0,
+        [`rooms/${room.id}/fireTotal`]:                0,
+        [`rooms/${room.id}/fireFound`]:                0,
+        [`rooms/${room.id}/winner`]:                   null,
+        [`rooms/${room.id}/winCondition`]:             null,
       }
       Object.values(room.players).forEach(p => {
         updates[`rooms/${room.id}/players/${p.id}/role`]          = null
@@ -509,6 +538,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           players: clearedPlayers,
           chambers: {},
           declarations: {},
+          declarationsRevealed: false,
           currentRound: 1,
           chambersOpenedThisRound: 0,
           goldTotal: 0,
@@ -542,7 +572,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameContext.Provider
-      value={{ state, createRoom, joinRoom, addDemoPlayer, startGame, confirmRole, openChamber, setDeclaration, resetToLobby, resetGame }}
+      value={{ state, createRoom, joinRoom, addDemoPlayer, startGame, confirmRole, openChamber, setDeclaration, revealDeclarations, resetToLobby, resetGame }}
     >
       {children}
     </GameContext.Provider>

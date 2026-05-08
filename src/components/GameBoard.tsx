@@ -1,4 +1,4 @@
-import { Flame, Gem, KeyRound, LogOut, Shield, Sword, Wind } from 'lucide-react'
+import { CheckCheck, Flame, Gem, KeyRound, LogOut, Shield, Sword, Wind } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
@@ -9,7 +9,7 @@ import { getMyDistributionSummary, getPlayerChambers } from '@/lib/gameLogic'
 import type { Declaration, Player } from '@/types/game'
 
 export function GameBoard() {
-  const { state, openChamber, setDeclaration, resetToLobby } = useGame()
+  const { state, openChamber, setDeclaration, revealDeclarations, resetToLobby } = useGame()
   const { room, myPlayerId } = state
   if (!room) return null
 
@@ -19,6 +19,8 @@ export function GameBoard() {
   const amHost = room.hostId === myPlayerId
   const myDist = getMyDistributionSummary(room, myPlayerId)
   const keyholder = players.find(p => p.isKeyholder)
+  const declarationsRevealed = room.declarationsRevealed
+  const declaredCount = Object.keys(room.declarations).length
 
   const goldPct = Math.round((room.goldFound / room.goldTotal) * 100)
 
@@ -100,29 +102,57 @@ export function GameBoard() {
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6 space-y-4">
 
-        {/* Keyholder action prompt */}
-        {amKeyholder && (
-          <div className="rounded-xl border border-gold-500/40 bg-gold-950/20 px-4 py-3 flex items-center gap-3">
-            <KeyRound className="w-5 h-5 text-gold-400 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-gold-300">You hold the key</p>
-              <p className="text-xs text-muted-foreground">
-                Click any face-down chamber that doesn't belong to you to open it.
-                {room.chambersOpenedThisRound > 0 && ` (${room.chambersOpenedThisRound}/${players.length} opened this round)`}
+        {/* Phase banners */}
+        {!declarationsRevealed ? (
+          <div className="rounded-xl border border-border/40 bg-card/40 px-4 py-3 space-y-2">
+            <div className="flex items-center gap-3">
+              <CheckCheck className="w-4 h-4 text-muted-foreground shrink-0" />
+              <p className="text-sm text-muted-foreground flex-1">
+                <span className="text-foreground font-medium">Declaration phase</span>
+                {' '}— set your claims below. The host reveals all at once.
+                <span className="ml-2 text-xs">
+                  ({declaredCount}/{players.length} declared)
+                </span>
               </p>
+              {amHost && (
+                <Button
+                  size="sm"
+                  variant="gold"
+                  className="shrink-0 gap-1.5 text-xs"
+                  onClick={revealDeclarations}
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  Reveal All
+                </Button>
+              )}
             </div>
           </div>
-        )}
+        ) : (
+          <>
+            {amKeyholder && (
+              <div className="rounded-xl border border-gold-500/40 bg-gold-950/20 px-4 py-3 flex items-center gap-3">
+                <KeyRound className="w-5 h-5 text-gold-400 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-gold-300">You hold the key</p>
+                  <p className="text-xs text-muted-foreground">
+                    Click any face-down chamber that doesn't belong to you to open it.
+                    {room.chambersOpenedThisRound > 0 && ` (${room.chambersOpenedThisRound}/${players.length} opened this round)`}
+                  </p>
+                </div>
+              </div>
+            )}
 
-        {!amKeyholder && keyholder && (
-          <div className="rounded-xl border border-border/40 bg-card/40 px-4 py-3 flex items-center gap-3">
-            <KeyRound className="w-4 h-4 text-muted-foreground shrink-0" />
-            <p className="text-sm text-muted-foreground">
-              <span className="text-foreground font-medium">{keyholder.name}</span> holds the key
-              {' '}— waiting for them to open a chamber
-              {' '}({room.chambersOpenedThisRound}/{players.length} this round)
-            </p>
-          </div>
+            {!amKeyholder && keyholder && (
+              <div className="rounded-xl border border-border/40 bg-card/40 px-4 py-3 flex items-center gap-3">
+                <KeyRound className="w-4 h-4 text-muted-foreground shrink-0" />
+                <p className="text-sm text-muted-foreground">
+                  <span className="text-foreground font-medium">{keyholder.name}</span> holds the key
+                  {' '}— waiting for them to open a chamber
+                  {' '}({room.chambersOpenedThisRound}/{players.length} this round)
+                </p>
+              </div>
+            )}
+          </>
         )}
 
         {/* Player chamber rows */}
@@ -134,6 +164,7 @@ export function GameBoard() {
               room={room}
               myPlayerId={myPlayerId}
               amKeyholder={amKeyholder}
+              declarationsRevealed={declarationsRevealed}
               onOpenChamber={openChamber}
               onSetDeclaration={setDeclaration}
             />
@@ -179,11 +210,12 @@ interface PlayerRowProps {
   room: ReturnType<typeof useGame>['state']['room']
   myPlayerId: string
   amKeyholder: boolean
+  declarationsRevealed: boolean
   onOpenChamber: (id: string) => void
   onSetDeclaration: (d: Declaration) => void
 }
 
-function PlayerRow({ player, room, myPlayerId, amKeyholder, onOpenChamber, onSetDeclaration }: PlayerRowProps) {
+function PlayerRow({ player, room, myPlayerId, amKeyholder, declarationsRevealed, onOpenChamber, onSetDeclaration }: PlayerRowProps) {
   if (!room) return null
   const isMe = player.id === myPlayerId
   const chambers = getPlayerChambers(room, player.id)
@@ -229,7 +261,7 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, onOpenChamber, onSet
           <ChamberCard
             key={chamber.id}
             chamber={chamber}
-            isClickable={amKeyholder && !isMe && !chamber.isOpened}
+            isClickable={declarationsRevealed && amKeyholder && !isMe && !chamber.isOpened}
             onClick={() => onOpenChamber(chamber.id)}
           />
         ))}
@@ -241,12 +273,16 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, onOpenChamber, onSet
       {/* Declaration row */}
       <div className="pt-2 border-t border-border/20">
         {isMe ? (
-          <DeclarationEditor
-            value={declaration ?? { gold: 0, fire: 0, empty: 0 }}
-            onChange={onSetDeclaration}
-          />
+          declarationsRevealed
+            ? <DeclarationDisplay declaration={declaration} playerName={player.name} locked />
+            : <DeclarationEditor
+                value={declaration ?? { gold: 0, fire: 0, empty: 0 }}
+                onChange={onSetDeclaration}
+              />
         ) : (
-          <DeclarationDisplay declaration={declaration} playerName={player.name} />
+          declarationsRevealed
+            ? <DeclarationDisplay declaration={declaration} playerName={player.name} />
+            : <DeclarationPending playerName={player.name} hasDeclared={!!declaration} />
         )}
       </div>
     </div>
@@ -293,9 +329,11 @@ function DeclarationEditor({
 function DeclarationDisplay({
   declaration,
   playerName,
+  locked,
 }: {
   declaration: Declaration | undefined
   playerName: string
+  locked?: boolean
 }) {
   if (!declaration) {
     return (
@@ -306,7 +344,7 @@ function DeclarationDisplay({
   }
   return (
     <div className="flex items-center gap-4 flex-wrap">
-      <span className="text-xs text-muted-foreground">Claims:</span>
+      <span className="text-xs text-muted-foreground">{locked ? 'You claimed:' : 'Claims:'}</span>
       <span className="flex items-center gap-1.5 text-xs text-gold-300">
         <Gem className="w-3 h-3" /> {declaration.gold} gold
       </span>
@@ -316,7 +354,19 @@ function DeclarationDisplay({
       <span className="flex items-center gap-1.5 text-xs text-slate-400">
         <Wind className="w-3 h-3" /> {declaration.empty} empty
       </span>
+      {locked && <span className="text-xs text-muted-foreground/50 italic">(locked)</span>}
     </div>
+  )
+}
+
+function DeclarationPending({ playerName, hasDeclared }: { playerName: string; hasDeclared: boolean }) {
+  return (
+    <p className="text-xs text-muted-foreground/60 italic">
+      {hasDeclared
+        ? <><span className="text-green-500/70 not-italic">✓</span> {playerName} has declared (hidden until reveal)</>
+        : <>{playerName} hasn't declared yet</>
+      }
+    </p>
   )
 }
 
