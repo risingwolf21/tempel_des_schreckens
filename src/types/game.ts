@@ -23,12 +23,19 @@ export interface Chamber {
   openedByKeyholderId?: string
 }
 
+export interface Declaration {
+  gold: number
+  fire: number
+  empty: number
+}
+
 export interface Room {
   id: string
   hostId: string
   status: GameStatus
   players: Record<string, Player>
   chambers: Record<string, Chamber>
+  declarations: Record<string, Declaration>
   currentRound: number
   chambersOpenedThisRound: number
   goldTotal: number
