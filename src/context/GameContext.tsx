@@ -464,20 +464,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!room || room.status !== 'playing') return
     if (room.declarationsRevealed) return
 
+    const playerCount = Object.keys(room.players).length
+    const alreadyDeclared = !!room.declarations[state.myPlayerId]
+    const newDeclaredCount = Object.keys(room.declarations).length + (alreadyDeclared ? 0 : 1)
+    const allDeclared = newDeclaredCount >= playerCount
+
     if (firebaseConfigured && db) {
-      void set(ref(db, `rooms/${room.id}/declarations/${state.myPlayerId}`), d)
+      const updates: Record<string, unknown> = {
+        [`rooms/${room.id}/declarations/${state.myPlayerId}`]: d,
+      }
+      if (allDeclared) updates[`rooms/${room.id}/declarationsRevealed`] = true
+      void update(ref(db), updates)
     } else {
-      setState(prev =>
-        prev.room
-          ? {
-              ...prev,
-              room: {
-                ...prev.room,
-                declarations: { ...prev.room.declarations, [state.myPlayerId]: d },
-              },
-            }
-          : prev,
-      )
+      setState(prev => {
+        if (!prev.room) return prev
+        const newDeclarations = { ...prev.room.declarations, [state.myPlayerId]: d }
+        const allDone = Object.keys(newDeclarations).length >= Object.keys(prev.room.players).length
+        return {
+          ...prev,
+          room: {
+            ...prev.room,
+            declarations: newDeclarations,
+            declarationsRevealed: allDone || prev.room.declarationsRevealed,
+          },
+        }
+      })
     }
   }
 
