@@ -1,4 +1,4 @@
-import { Flame, Gem, KeyRound, Shield, Sword, Wind } from 'lucide-react'
+import { Flame, Gem, KeyRound, LogOut, Shield, Sword, Wind } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
@@ -8,13 +8,14 @@ import { getMyDistributionSummary, getPlayerChambers } from '@/lib/gameLogic'
 import type { Player } from '@/types/game'
 
 export function GameBoard() {
-  const { state, openChamber } = useGame()
+  const { state, openChamber, resetToLobby } = useGame()
   const { room, myPlayerId } = state
   if (!room) return null
 
   const players = Object.values(room.players)
   const me = room.players[myPlayerId]
   const amKeyholder = me?.isKeyholder ?? false
+  const amHost = room.hostId === myPlayerId
   const myDist = getMyDistributionSummary(room, myPlayerId)
   const keyholder = players.find(p => p.isKeyholder)
 
@@ -78,6 +79,20 @@ export function GameBoard() {
                 <span className="text-muted-foreground">/{room.fireTotal}</span>
               </span>
             </div>
+
+            {/* Host-only: end game, return to lobby */}
+            {amHost && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground gap-1.5 text-xs"
+                onClick={resetToLobby}
+                title="End game and return to lobby"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                End Game
+              </Button>
+            )}
           </div>
         </div>
       </header>
