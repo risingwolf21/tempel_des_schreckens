@@ -97,6 +97,7 @@ export function buildInitialRoom(
     hostId: players[0].id,
     players: updatedPlayers,
     chambers,
+    declarations: {},
     currentRound: 1,
     chambersOpenedThisRound: 0,
     goldTotal: dist.gold,
@@ -154,6 +155,7 @@ export function advanceRound(room: Room): Room {
     ...room,
     currentRound: nextRound,
     chambersOpenedThisRound: 0,
+    declarations: {},
   }
 }
 

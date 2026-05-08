@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import { get, onValue, ref, remove, set, update } from 'firebase/database'
-import type { Chamber, Player, Room } from '@/types/game'
+import type { Chamber, Declaration, Player, Room } from '@/types/game'
 import { db, firebaseConfigured } from '@/lib/firebase'
 import {
   advanceRound,
@@ -73,12 +73,18 @@ function sanitizeRoom(raw: Partial<Room>): Room {
     }
   }
 
+  const declarations: Room['declarations'] = {}
+  for (const [id, d] of Object.entries(raw.declarations ?? {})) {
+    declarations[id] = { gold: d.gold ?? 0, fire: d.fire ?? 0, empty: d.empty ?? 0 }
+  }
+
   return {
     id: raw.id ?? '',
     hostId: raw.hostId ?? '',
     status: raw.status ?? 'lobby',
     players,
     chambers,
+    declarations,
     currentRound: raw.currentRound ?? 1,
     chambersOpenedThisRound: raw.chambersOpenedThisRound ?? 0,
     goldTotal: raw.goldTotal ?? 0,
@@ -100,6 +106,7 @@ interface GameContextValue {
   startGame: () => void
   confirmRole: () => void
   openChamber: (chamberId: string) => void
+  setDeclaration: (d: Declaration) => void
   resetToLobby: () => void
   resetGame: () => void
 }
@@ -163,6 +170,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       status: 'lobby',
       players: { [me.id]: me },
       chambers: {},
+      declarations: {},
       currentRound: 1,
       chambersOpenedThisRound: 0,
       goldTotal: 0,
@@ -386,9 +394,36 @@ export function GameProvider({ children }: { children: ReactNode }) {
         updates[`rooms/${room.id}/winner`]        = finalRoom.winner
         updates[`rooms/${room.id}/winCondition`]  = finalRoom.winCondition
       }
+      // Clear declarations when the round rolls over or the game ends
+      if (finalRoom.currentRound !== room.currentRound || finalRoom.status === 'ended') {
+        updates[`rooms/${room.id}/declarations`] = null
+      }
       void update(ref(db), updates)
     } else {
       setState(prev => ({ ...prev, room: finalRoom }))
+    }
+  }
+
+  // ── setDeclaration ──────────────────────────────────────────────────────────
+
+  function setDeclaration(d: Declaration) {
+    const room = state.room
+    if (!room || room.status !== 'playing') return
+
+    if (firebaseConfigured && db) {
+      void set(ref(db, `rooms/${room.id}/declarations/${state.myPlayerId}`), d)
+    } else {
+      setState(prev =>
+        prev.room
+          ? {
+              ...prev,
+              room: {
+                ...prev.room,
+                declarations: { ...prev.room.declarations, [state.myPlayerId]: d },
+              },
+            }
+          : prev,
+      )
     }
   }
 
@@ -403,6 +438,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const updates: Record<string, unknown> = {
         [`rooms/${room.id}/status`]:                 'lobby',
         [`rooms/${room.id}/chambers`]:               null,
+        [`rooms/${room.id}/declarations`]:           null,
         [`rooms/${room.id}/currentRound`]:           1,
         [`rooms/${room.id}/chambersOpenedThisRound`]:0,
         [`rooms/${room.id}/goldTotal`]:              0,
@@ -431,6 +467,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           status: 'lobby',
           players: clearedPlayers,
           chambers: {},
+          declarations: {},
           currentRound: 1,
           chambersOpenedThisRound: 0,
           goldTotal: 0,
@@ -463,7 +500,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameContext.Provider
-      value={{ state, createRoom, joinRoom, addDemoPlayer, startGame, confirmRole, openChamber, resetToLobby, resetGame }}
+      value={{ state, createRoom, joinRoom, addDemoPlayer, startGame, confirmRole, openChamber, setDeclaration, resetToLobby, resetGame }}
     >
       {children}
     </GameContext.Provider>

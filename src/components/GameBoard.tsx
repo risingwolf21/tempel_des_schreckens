@@ -2,13 +2,14 @@ import { Flame, Gem, KeyRound, LogOut, Shield, Sword, Wind } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
 import { ChamberCard } from './ChamberCard'
 import { useGame } from '@/context/GameContext'
 import { getMyDistributionSummary, getPlayerChambers } from '@/lib/gameLogic'
-import type { Player } from '@/types/game'
+import type { Declaration, Player } from '@/types/game'
 
 export function GameBoard() {
-  const { state, openChamber, resetToLobby } = useGame()
+  const { state, openChamber, setDeclaration, resetToLobby } = useGame()
   const { room, myPlayerId } = state
   if (!room) return null
 
@@ -134,15 +135,16 @@ export function GameBoard() {
               myPlayerId={myPlayerId}
               amKeyholder={amKeyholder}
               onOpenChamber={openChamber}
+              onSetDeclaration={setDeclaration}
             />
           ))}
         </div>
       </main>
 
-      {/* Bottom bar — my private distribution */}
+      {/* Bottom bar — my private card distribution (actual cards, not declared) */}
       <footer className="sticky bottom-0 bg-stone-950/95 backdrop-blur border-t border-border/50 px-4 py-3">
         <div className="max-w-4xl mx-auto flex items-center gap-4 flex-wrap">
-          <span className="text-xs text-muted-foreground uppercase tracking-wider">Your cards:</span>
+          <span className="text-xs text-muted-foreground uppercase tracking-wider">Your actual cards:</span>
           <div className="flex items-center gap-3 text-sm">
             <span className="flex items-center gap-1.5 text-gold-300">
               <Gem className="w-3.5 h-3.5" />
@@ -170,18 +172,22 @@ export function GameBoard() {
   )
 }
 
+// ─── PlayerRow ───────────────────────────────────────────────────────────────
+
 interface PlayerRowProps {
   player: Player
   room: ReturnType<typeof useGame>['state']['room']
   myPlayerId: string
   amKeyholder: boolean
   onOpenChamber: (id: string) => void
+  onSetDeclaration: (d: Declaration) => void
 }
 
-function PlayerRow({ player, room, myPlayerId, amKeyholder, onOpenChamber }: PlayerRowProps) {
+function PlayerRow({ player, room, myPlayerId, amKeyholder, onOpenChamber, onSetDeclaration }: PlayerRowProps) {
   if (!room) return null
   const isMe = player.id === myPlayerId
   const chambers = getPlayerChambers(room, player.id)
+  const declaration = room.declarations[player.id]
 
   return (
     <div
@@ -195,6 +201,7 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, onOpenChamber }: Pla
         }
       `}
     >
+      {/* Player header */}
       <div className="flex items-center gap-2.5">
         <Avatar className="h-7 w-7">
           <AvatarFallback className={`text-xs ${isMe ? 'bg-blue-800/50 text-blue-300' : 'bg-secondary text-secondary-foreground'}`}>
@@ -216,6 +223,7 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, onOpenChamber }: Pla
         </span>
       </div>
 
+      {/* Chamber cards */}
       <div className="flex flex-wrap gap-2">
         {chambers.map(chamber => (
           <ChamberCard
@@ -229,6 +237,122 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, onOpenChamber }: Pla
           <span className="text-xs text-muted-foreground italic">No chambers remaining</span>
         )}
       </div>
+
+      {/* Declaration row */}
+      <div className="pt-2 border-t border-border/20">
+        {isMe ? (
+          <DeclarationEditor
+            value={declaration ?? { gold: 0, fire: 0, empty: 0 }}
+            onChange={onSetDeclaration}
+          />
+        ) : (
+          <DeclarationDisplay declaration={declaration} playerName={player.name} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Declaration components ───────────────────────────────────────────────────
+
+function DeclarationEditor({
+  value,
+  onChange,
+}: {
+  value: Declaration
+  onChange: (d: Declaration) => void
+}) {
+  return (
+    <div className="flex items-center gap-4 flex-wrap">
+      <span className="text-xs text-muted-foreground">I claim:</span>
+      <Counter
+        value={value.gold}
+        icon={<Gem className="w-3 h-3 text-gold-400" />}
+        label="gold"
+        valueClass="text-gold-300"
+        onChange={n => onChange({ ...value, gold: n })}
+      />
+      <Counter
+        value={value.fire}
+        icon={<Flame className="w-3 h-3 text-fire-400" />}
+        label="fire"
+        valueClass="text-fire-400"
+        onChange={n => onChange({ ...value, fire: n })}
+      />
+      <Counter
+        value={value.empty}
+        icon={<Wind className="w-3 h-3 text-slate-400" />}
+        label="empty"
+        valueClass="text-slate-400"
+        onChange={n => onChange({ ...value, empty: n })}
+      />
+    </div>
+  )
+}
+
+function DeclarationDisplay({
+  declaration,
+  playerName,
+}: {
+  declaration: Declaration | undefined
+  playerName: string
+}) {
+  if (!declaration) {
+    return (
+      <p className="text-xs text-muted-foreground/50 italic">
+        {playerName} hasn't declared their cards yet
+      </p>
+    )
+  }
+  return (
+    <div className="flex items-center gap-4 flex-wrap">
+      <span className="text-xs text-muted-foreground">Claims:</span>
+      <span className="flex items-center gap-1.5 text-xs text-gold-300">
+        <Gem className="w-3 h-3" /> {declaration.gold} gold
+      </span>
+      <span className="flex items-center gap-1.5 text-xs text-fire-400">
+        <Flame className="w-3 h-3" /> {declaration.fire} fire
+      </span>
+      <span className="flex items-center gap-1.5 text-xs text-slate-400">
+        <Wind className="w-3 h-3" /> {declaration.empty} empty
+      </span>
+    </div>
+  )
+}
+
+function Counter({
+  value,
+  icon,
+  label,
+  valueClass,
+  onChange,
+}: {
+  value: number
+  icon: React.ReactNode
+  label: string
+  valueClass: string
+  onChange: (n: number) => void
+}) {
+  return (
+    <div className="flex items-center gap-1" title={label}>
+      {icon}
+      <button
+        onClick={() => onChange(Math.max(0, value - 1))}
+        className="w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent text-sm leading-none transition-colors select-none"
+        aria-label={`Decrease ${label}`}
+      >
+        −
+      </button>
+      <span className={`w-4 text-center text-sm font-semibold tabular-nums ${valueClass}`}>
+        {value}
+      </span>
+      <button
+        onClick={() => onChange(Math.min(9, value + 1))}
+        className="w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-accent text-sm leading-none transition-colors select-none"
+        aria-label={`Increase ${label}`}
+      >
+        +
+      </button>
     </div>
   )
 }
