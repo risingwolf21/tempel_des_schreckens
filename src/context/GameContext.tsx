@@ -100,6 +100,7 @@ interface GameContextValue {
   startGame: () => void
   confirmRole: () => void
   openChamber: (chamberId: string) => void
+  resetToLobby: () => void
   resetGame: () => void
 }
 
@@ -391,6 +392,58 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // ── resetToLobby ────────────────────────────────────────────────────────────
+  // Keeps the current player list, wipes all game state back to lobby.
+
+  function resetToLobby() {
+    const room = state.room
+    if (!room) return
+
+    if (firebaseConfigured && db) {
+      const updates: Record<string, unknown> = {
+        [`rooms/${room.id}/status`]:                 'lobby',
+        [`rooms/${room.id}/chambers`]:               null,
+        [`rooms/${room.id}/currentRound`]:           1,
+        [`rooms/${room.id}/chambersOpenedThisRound`]:0,
+        [`rooms/${room.id}/goldTotal`]:              0,
+        [`rooms/${room.id}/goldFound`]:              0,
+        [`rooms/${room.id}/fireTotal`]:              0,
+        [`rooms/${room.id}/fireFound`]:              0,
+        [`rooms/${room.id}/winner`]:                 null,
+        [`rooms/${room.id}/winCondition`]:           null,
+      }
+      Object.values(room.players).forEach(p => {
+        updates[`rooms/${room.id}/players/${p.id}/role`]          = null
+        updates[`rooms/${room.id}/players/${p.id}/isKeyholder`]   = false
+        updates[`rooms/${room.id}/players/${p.id}/roleConfirmed`] = false
+      })
+      void update(ref(db), updates)
+    } else {
+      const clearedPlayers: Room['players'] = {}
+      Object.values(room.players).forEach(p => {
+        const { role: _r, ...rest } = p
+        clearedPlayers[p.id] = { ...rest, isKeyholder: false, roleConfirmed: false }
+      })
+      setState(prev => prev.room ? {
+        ...prev,
+        room: {
+          ...prev.room,
+          status: 'lobby',
+          players: clearedPlayers,
+          chambers: {},
+          currentRound: 1,
+          chambersOpenedThisRound: 0,
+          goldTotal: 0,
+          goldFound: 0,
+          fireTotal: 0,
+          fireFound: 0,
+          winner: null,
+          winCondition: null,
+        },
+      } : prev)
+    }
+  }
+
   // ── resetGame ───────────────────────────────────────────────────────────────
 
   function resetGame() {
@@ -410,7 +463,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameContext.Provider
-      value={{ state, createRoom, joinRoom, addDemoPlayer, startGame, confirmRole, openChamber, resetGame }}
+      value={{ state, createRoom, joinRoom, addDemoPlayer, startGame, confirmRole, openChamber, resetToLobby, resetGame }}
     >
       {children}
     </GameContext.Provider>

@@ -1,4 +1,4 @@
-import { Flame, Gem, RotateCcw, Shield, Sword, Timer } from 'lucide-react'
+import { Flame, Gem, LogOut, RotateCcw, Shield, Sword, Timer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -12,7 +12,7 @@ const WIN_CONDITION_LABELS: Record<string, string> = {
 }
 
 export function EndScreen() {
-  const { state, resetGame } = useGame()
+  const { state, resetToLobby, resetGame } = useGame()
   const { room, myPlayerId } = state
   if (!room) return null
 
@@ -21,6 +21,7 @@ export function EndScreen() {
   const adventurers = players.filter(p => p.role === 'adventurer')
   const guardians = players.filter(p => p.role === 'guardian')
   const me = room.players[myPlayerId]
+  const amHost = room.hostId === myPlayerId
   const iWon =
     (isAdventurersWin && me?.role === 'adventurer') ||
     (!isAdventurersWin && me?.role === 'guardian')
@@ -102,9 +103,19 @@ export function EndScreen() {
 
         {/* Actions */}
         <div className="space-y-2">
-          <Button variant="gold" size="lg" className="w-full" onClick={resetGame}>
-            <RotateCcw className="w-4 h-4" />
-            Play Again
+          {amHost ? (
+            <Button variant="gold" size="lg" className="w-full" onClick={resetToLobby}>
+              <RotateCcw className="w-4 h-4" />
+              Play Again (same players)
+            </Button>
+          ) : (
+            <div className="rounded-lg border border-border/50 bg-card/30 px-4 py-3 text-center text-sm text-muted-foreground">
+              Waiting for the host to start a new game…
+            </div>
+          )}
+          <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={resetGame}>
+            <LogOut className="w-4 h-4" />
+            Leave Room
           </Button>
         </div>
       </div>
