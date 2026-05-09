@@ -5,7 +5,7 @@ import type { Chamber } from '@/types/game'
 interface ChamberCardProps {
   chamber: Chamber
   isClickable: boolean
-  onClick?: () => void
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   isJustOpened?: boolean
 }
 
