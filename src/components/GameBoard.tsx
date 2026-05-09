@@ -1,4 +1,4 @@
-import { CheckCheck, Flame, Gem, KeyRound, LogOut, Shield, Sword, Wind } from 'lucide-react'
+import { CheckCheck, Flame, Gem, KeyRound, LogOut, Shield, Sword, UserMinus, Wind } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
@@ -9,7 +9,7 @@ import { getPlayerChambers } from '@/lib/gameLogic'
 import type { Declaration, Player } from '@/types/game'
 
 export function GameBoard() {
-  const { state, openChamber, setDeclaration, revealDeclarations, resetToLobby } = useGame()
+  const { state, openChamber, setDeclaration, revealDeclarations, resetToLobby, leaveRoom } = useGame()
   const { room, myPlayerId } = state
   if (!room) return null
 
@@ -85,8 +85,7 @@ export function GameBoard() {
               </span>
             </div>
 
-            {/* Host-only: end game, return to lobby */}
-            {amHost && (
+            {amHost ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -96,6 +95,17 @@ export function GameBoard() {
               >
                 <LogOut className="w-3.5 h-3.5" />
                 End Game
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground gap-1.5 text-xs"
+                onClick={leaveRoom}
+                title="Leave this room"
+              >
+                <UserMinus className="w-3.5 h-3.5" />
+                Leave
               </Button>
             )}
           </div>
@@ -277,16 +287,25 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, declarationsRevealed
         </span>
       </div>
 
-      {/* Chamber cards */}
-      <div className="flex flex-wrap gap-2">
-        {chambers.map(chamber => (
-          <ChamberCard
-            key={chamber.id}
-            chamber={chamber}
-            isClickable={declarationsRevealed && amKeyholder && !isMe && !chamber.isOpened}
-            onClick={() => onOpenChamber(chamber.id)}
-          />
-        ))}
+      {/* Chamber slots */}
+      <div className="flex flex-wrap gap-1">
+        {chambers.map(chamber => {
+          const clickable = declarationsRevealed && amKeyholder && !isMe
+          return (
+            <button
+              key={chamber.id}
+              disabled={!clickable}
+              onClick={() => clickable && onOpenChamber(chamber.id)}
+              className={`px-2 py-0.5 rounded border text-xs transition-colors ${
+                clickable
+                  ? 'border-gold-500/50 text-gold-300 bg-gold-950/20 hover:bg-gold-900/40 cursor-pointer'
+                  : 'border-border/30 text-muted-foreground/40 bg-transparent cursor-default'
+              }`}
+            >
+              ?
+            </button>
+          )
+        })}
         {chambers.length === 0 && (
           <span className="text-xs text-muted-foreground italic">No chambers remaining</span>
         )}
