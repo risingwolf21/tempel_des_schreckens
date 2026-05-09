@@ -17,7 +17,7 @@ function AppScreens() {
     case 'lobby':         return <LobbyScreen />
     case 'role-reveal':   return <RoleReveal />
     case 'playing':       return <GameBoard />
-    case 'round-summary': return <RoundSummary />
+    case 'round-summary': return <GameBoard />
     case 'ended':         return <EndScreen />
   }
 }
