@@ -110,6 +110,7 @@ interface GameContextValue {
   setDeclaration: (d: Declaration) => void
   revealDeclarations: () => void
   resetToLobby: () => void
+  leaveRoom: () => void
   resetGame: () => void
 }
 
@@ -563,6 +564,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // ── leaveRoom ────────────────────────────────────────────────────────────────
+  // Non-host players leave; their player entry is removed from the room.
+
+  function leaveRoom() {
+    const room = state.room
+    clearConnectTimeout()
+    if (firebaseConfigured && db && room) {
+      void remove(ref(db, `rooms/${room.id}/players/${state.myPlayerId}`))
+      unsubRef.current?.()
+      unsubRef.current = null
+      setStoredRoomId(null)
+    }
+    setState(prev => ({ ...prev, room: null, joinError: null, isLoading: false }))
+  }
+
   // ── resetGame ───────────────────────────────────────────────────────────────
 
   function resetGame() {
@@ -583,7 +599,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameContext.Provider
-      value={{ state, createRoom, joinRoom, addDemoPlayer, startGame, confirmRole, openChamber, setDeclaration, revealDeclarations, resetToLobby, resetGame }}
+      value={{ state, createRoom, joinRoom, addDemoPlayer, startGame, confirmRole, openChamber, setDeclaration, revealDeclarations, resetToLobby, leaveRoom, resetGame }}
     >
       {children}
     </GameContext.Provider>
