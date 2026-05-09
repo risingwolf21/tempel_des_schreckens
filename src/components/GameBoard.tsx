@@ -20,6 +20,9 @@ export function GameBoard() {
   const keyholder = players.find(p => p.isKeyholder)
   const declarationsRevealed = room.declarationsRevealed
   const declaredCount = Object.keys(room.declarations).length
+  const openedThisRound = Object.values(room.chambers).filter(
+    c => c.isOpened && c.openedInRound === room.currentRound
+  )
 
   const goldPct = Math.round((room.goldFound / room.goldTotal) * 100)
 
@@ -154,6 +157,29 @@ export function GameBoard() {
           </>
         )}
 
+        {/* This round's reveals */}
+        {openedThisRound.length > 0 && (
+          <div className="rounded-xl border border-border/40 bg-card/30 px-4 py-3 space-y-2">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">This round&apos;s reveals</p>
+            <div className="flex flex-wrap gap-5">
+              {players.map(player => {
+                const playerOpened = openedThisRound.filter(c => c.ownerId === player.id)
+                if (playerOpened.length === 0) return null
+                return (
+                  <div key={player.id} className="flex flex-col items-center gap-1.5">
+                    <div className="flex gap-1.5">
+                      {playerOpened.map(c => (
+                        <ChamberCard key={c.id} chamber={{ ...c, isOpened: true }} isClickable={false} />
+                      ))}
+                    </div>
+                    <span className="text-xs text-muted-foreground">{player.name}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Player chamber rows */}
         <div className="space-y-3">
           {players.map(player => (
@@ -214,7 +240,7 @@ interface PlayerRowProps {
 function PlayerRow({ player, room, myPlayerId, amKeyholder, declarationsRevealed, onOpenChamber, onSetDeclaration }: PlayerRowProps) {
   if (!room) return null
   const isMe = player.id === myPlayerId
-  const chambers = getPlayerChambers(room, player.id)
+  const chambers = getPlayerChambers(room, player.id).filter(c => !c.isOpened)
   const declaration = room.declarations[player.id]
 
   return (
@@ -247,7 +273,7 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, declarationsRevealed
           </Badge>
         )}
         <span className="ml-auto text-xs text-muted-foreground">
-          {chambers.filter(c => !c.isOpened).length} remaining
+          {chambers.length} remaining
         </span>
       </div>
 
