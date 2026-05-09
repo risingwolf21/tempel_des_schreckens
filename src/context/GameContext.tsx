@@ -173,6 +173,125 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setStoredRoomId(roomId)
   }
 
+  // ── Demo player automation ──────────────────────────────────────────────────
+  // Only the host triggers actions for demo players.
+
+  // 1. Auto-declare: when the declaration phase opens, demo players lock in
+  //    their actual card counts after a short random delay.
+  useEffect(() => {
+    const room = state.room
+    if (!room || room.status !== 'playing' || room.declarationsRevealed) return
+    if (room.hostId !== state.myPlayerId) return
+    const undeclared = Object.values(room.players).filter(p => p.isDemo && !room.declarations[p.id])
+    if (undeclared.length === 0) return
+
+    const timer = setTimeout(() => {
+      const playerCount = Object.keys(room.players).length
+      const newDeclaredCount = Object.keys(room.declarations).length + undeclared.length
+      const allDeclared = newDeclaredCount >= playerCount
+
+      if (firebaseConfigured && db) {
+        const updates: Record<string, unknown> = {}
+        undeclared.forEach(p => {
+          const mine = Object.values(room.chambers).filter(c => c.ownerId === p.id && !c.isOpened)
+          updates[`rooms/${room.id}/declarations/${p.id}`] = {
+            gold:  mine.filter(c => c.content === 'gold').length,
+            fire:  mine.filter(c => c.content === 'fire').length,
+            empty: mine.filter(c => c.content === 'empty').length,
+          }
+        })
+        if (allDeclared) updates[`rooms/${room.id}/declarationsRevealed`] = true
+        void update(ref(db), updates)
+      } else {
+        setState(prev => {
+          if (!prev.room) return prev
+          const newDeclarations = { ...prev.room.declarations }
+          undeclared.forEach(p => {
+            const mine = Object.values(prev.room!.chambers).filter(c => c.ownerId === p.id && !c.isOpened)
+            newDeclarations[p.id] = {
+              gold:  mine.filter(c => c.content === 'gold').length,
+              fire:  mine.filter(c => c.content === 'fire').length,
+              empty: mine.filter(c => c.content === 'empty').length,
+            }
+          })
+          const allDone = Object.keys(newDeclarations).length >= playerCount
+          return {
+            ...prev,
+            room: { ...prev.room!, declarations: newDeclarations, declarationsRevealed: allDone || prev.room!.declarationsRevealed },
+          }
+        })
+      }
+    }, 800 + Math.random() * 1200)
+
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.room?.status, state.room?.currentRound, state.room?.declarationsRevealed,
+      // Rerun when the set of declared players changes (human locks in → check if demos still needed)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      Object.keys(state.room?.declarations ?? {}).join(',')])
+
+  // 2. Auto-open: when a demo player holds the key and declarations are revealed,
+  //    open a random chamber from another player after a short delay.
+  useEffect(() => {
+    const room = state.room
+    if (!room || room.status !== 'playing' || !room.declarationsRevealed) return
+    if (room.hostId !== state.myPlayerId) return
+    const demoKeyholder = Object.values(room.players).find(p => p.isDemo && p.isKeyholder)
+    if (!demoKeyholder) return
+
+    const openable = Object.values(room.chambers).filter(c => !c.isOpened && c.ownerId !== demoKeyholder.id)
+    if (openable.length === 0) return
+
+    const timer = setTimeout(() => {
+      const target = openable[Math.floor(Math.random() * openable.length)]
+      const goldFound = room.goldFound + (target.content === 'gold' ? 1 : 0)
+      const fireFound = room.fireFound + (target.content === 'fire' ? 1 : 0)
+      const chambersOpenedThisRound = room.chambersOpenedThisRound + 1
+
+      const updatedPlayers = { ...room.players }
+      Object.values(updatedPlayers).forEach(p => {
+        updatedPlayers[p.id] = { ...p, isKeyholder: p.id === target.ownerId }
+      })
+      const updatedChamber: Chamber = {
+        ...target, isOpened: true, openedInRound: room.currentRound, openedByKeyholderId: demoKeyholder.id,
+      }
+      const updatedRoom: Room = {
+        ...room, chambers: { ...room.chambers, [target.id]: updatedChamber },
+        players: updatedPlayers, goldFound, fireFound, chambersOpenedThisRound,
+      }
+      const winResult = checkWinCondition(updatedRoom)
+      const roundOver = isRoundOver(updatedRoom)
+      const finalRoom: Room = winResult
+        ? { ...updatedRoom, status: 'ended', winner: winResult.winner, winCondition: winResult.condition }
+        : roundOver ? { ...updatedRoom, status: 'round-summary' } : updatedRoom
+
+      if (firebaseConfigured && db) {
+        const updates: Record<string, unknown> = {
+          [`rooms/${room.id}/chambers/${target.id}/isOpened`]:            true,
+          [`rooms/${room.id}/chambers/${target.id}/openedInRound`]:       room.currentRound,
+          [`rooms/${room.id}/chambers/${target.id}/openedByKeyholderId`]: demoKeyholder.id,
+          [`rooms/${room.id}/goldFound`]:               goldFound,
+          [`rooms/${room.id}/fireFound`]:               fireFound,
+          [`rooms/${room.id}/chambersOpenedThisRound`]: chambersOpenedThisRound,
+          [`rooms/${room.id}/status`]:                  finalRoom.status,
+        }
+        Object.values(updatedPlayers).forEach(p => {
+          updates[`rooms/${room.id}/players/${p.id}/isKeyholder`] = p.isKeyholder
+        })
+        if (finalRoom.winner) {
+          updates[`rooms/${room.id}/winner`]       = finalRoom.winner
+          updates[`rooms/${room.id}/winCondition`] = finalRoom.winCondition
+        }
+        void update(ref(db), updates)
+      } else {
+        setState(prev => ({ ...prev, room: finalRoom }))
+      }
+    }, 1000 + Math.random() * 1500)
+
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.room?.declarationsRevealed, state.room?.chambersOpenedThisRound, state.room?.currentRound])
+
   // ── createRoom ──────────────────────────────────────────────────────────────
 
   function createRoom(name: string) {
