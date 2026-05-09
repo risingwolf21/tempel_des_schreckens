@@ -13,6 +13,34 @@ import type { Chamber, Declaration, Player } from '@/types/game'
 export function GameBoard() {
   const { state, openChamber, setDeclaration, resetToLobby, leaveRoom } = useGame()
   const { room, myPlayerId } = state
+
+  // Hooks must come before any early return
+  const trackedOpened = useRef<Set<string> | null>(null)
+  const pendingRevealRect = useRef<DOMRect | null>(null)
+  const [revealedInfo, setRevealedInfo] = useState<{
+    chamber: Chamber; playerName: string; startRect: DOMRect | null
+  } | null>(null)
+
+  useEffect(() => {
+    if (!room) return
+    if (trackedOpened.current === null) {
+      trackedOpened.current = new Set(
+        Object.values(room.chambers).filter(c => c.isOpened).map(c => c.id),
+      )
+    }
+    for (const c of Object.values(room.chambers)) {
+      if (c.isOpened && !trackedOpened.current.has(c.id)) {
+        trackedOpened.current.add(c.id)
+        const owner = room.players[c.ownerId]
+        const startRect = pendingRevealRect.current
+        pendingRevealRect.current = null
+        setRevealedInfo({ chamber: c, playerName: owner?.name ?? '?', startRect })
+        break
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room?.chambers])
+
   if (!room) return null
 
   const players = Object.values(room.players)
@@ -26,33 +54,6 @@ export function GameBoard() {
   const openedThisRound = Object.values(room.chambers).filter(
     c => c.isOpened && c.openedInRound === room.currentRound && c.id !== animatingId
   )
-
-  // Track newly opened chambers to trigger the reveal animation
-  const trackedOpened = useRef<Set<string> | null>(null)
-  if (trackedOpened.current === null) {
-    trackedOpened.current = new Set(
-      Object.values(room.chambers).filter(c => c.isOpened).map(c => c.id),
-    )
-  }
-  // Keyholder stores the clicked card's rect here before the Firebase round-trip
-  const pendingRevealRect = useRef<DOMRect | null>(null)
-  const [revealedInfo, setRevealedInfo] = useState<{
-    chamber: Chamber; playerName: string; startRect: DOMRect | null
-  } | null>(null)
-
-  useEffect(() => {
-    for (const c of Object.values(room.chambers)) {
-      if (c.isOpened && !trackedOpened.current!.has(c.id)) {
-        trackedOpened.current!.add(c.id)
-        const owner = room.players[c.ownerId]
-        const startRect = pendingRevealRect.current
-        pendingRevealRect.current = null
-        setRevealedInfo({ chamber: c, playerName: owner?.name ?? '?', startRect })
-        break
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.chambers])
 
   function handleOpenChamber(id: string, rect?: DOMRect) {
     if (rect) pendingRevealRect.current = rect
