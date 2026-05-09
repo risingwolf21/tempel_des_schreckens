@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { ChamberCard } from './ChamberCard'
 import { CardRevealAnimation } from './CardRevealAnimation'
+import { RoundSummary } from './RoundSummary'
 import { useGame } from '@/context/GameContext'
 import { getPlayerChambers } from '@/lib/gameLogic'
 import type { Chamber, Declaration, Player } from '@/types/game'
@@ -43,6 +44,9 @@ export function GameBoard() {
 
   if (!room) return null
 
+  // Show round summary only after the reveal animation finishes
+  if (room.status === 'round-summary' && !revealedInfo) return <RoundSummary />
+
   const players = Object.values(room.players)
   const me = room.players[myPlayerId]
   const amKeyholder = me?.isKeyholder ?? false
@@ -50,6 +54,7 @@ export function GameBoard() {
   const keyholder = players.find(p => p.isKeyholder)
   const declarationsRevealed = room.declarationsRevealed
   const declaredCount = Object.keys(room.declarations).length
+  const isAnimating = revealedInfo !== null
   const animatingId = revealedInfo?.chamber.id ?? null
   const openedThisRound = Object.values(room.chambers).filter(
     c => c.isOpened && c.openedInRound === room.currentRound && c.id !== animatingId
@@ -225,6 +230,7 @@ export function GameBoard() {
               myPlayerId={myPlayerId}
               amKeyholder={amKeyholder}
               declarationsRevealed={declarationsRevealed}
+              isAnimating={isAnimating}
               onOpenChamber={handleOpenChamber}
               onSetDeclaration={setDeclaration}
             />
@@ -278,11 +284,12 @@ interface PlayerRowProps {
   myPlayerId: string
   amKeyholder: boolean
   declarationsRevealed: boolean
+  isAnimating: boolean
   onOpenChamber: (id: string, rect?: DOMRect) => void
   onSetDeclaration: (d: Declaration) => void
 }
 
-function PlayerRow({ player, room, myPlayerId, amKeyholder, declarationsRevealed, onOpenChamber, onSetDeclaration }: PlayerRowProps) {
+function PlayerRow({ player, room, myPlayerId, amKeyholder, declarationsRevealed, isAnimating, onOpenChamber, onSetDeclaration }: PlayerRowProps) {
   if (!room) return null
   const isMe = player.id === myPlayerId
   const chambers = getPlayerChambers(room, player.id).filter(c => !c.isOpened)
@@ -330,7 +337,7 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, declarationsRevealed
           <ChamberCard
             key={chamber.id}
             chamber={chamber}
-            isClickable={declarationsRevealed && amKeyholder && !isMe}
+            isClickable={declarationsRevealed && amKeyholder && !isMe && !isAnimating}
             onClick={(e) => onOpenChamber(chamber.id, e.currentTarget.getBoundingClientRect())}
           />
         ))}
