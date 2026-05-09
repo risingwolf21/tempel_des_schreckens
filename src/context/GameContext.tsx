@@ -559,6 +559,29 @@ export function GameProvider({ children }: { children: ReactNode }) {
   function continueRound() {
     const room = state.room
     if (!room || room.status !== 'round-summary') return
+
+    // Guardians win if no gold was found in the round that just ended.
+    const openedThisRound = Object.values(room.chambers).filter(
+      c => c.isOpened && c.openedInRound === room.currentRound,
+    )
+    const goldFoundThisRound = openedThisRound.filter(c => c.content === 'gold').length
+    if (goldFoundThisRound === 0) {
+      if (firebaseConfigured && db) {
+        void update(ref(db), {
+          [`rooms/${room.id}/status`]:       'ended',
+          [`rooms/${room.id}/winner`]:       'guardians',
+          [`rooms/${room.id}/winCondition`]: 'no-gold-round',
+        })
+      } else {
+        setState(prev =>
+          prev.room
+            ? { ...prev, room: { ...prev.room, status: 'ended', winner: 'guardians', winCondition: 'no-gold-round' } }
+            : prev,
+        )
+      }
+      return
+    }
+
     const nextRoom = advanceRound(room)
 
     if (firebaseConfigured && db) {

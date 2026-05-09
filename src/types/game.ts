@@ -1,7 +1,7 @@
 export type Role = 'adventurer' | 'guardian'
 export type ChamberContent = 'gold' | 'fire' | 'empty'
 export type GameStatus = 'lobby' | 'role-reveal' | 'playing' | 'round-summary' | 'ended'
-export type WinCondition = 'all-gold' | 'all-fire' | 'time-up'
+export type WinCondition = 'all-gold' | 'all-fire' | 'time-up' | 'no-gold-round'
 export type Team = 'adventurers' | 'guardians'
 
 export interface Player {

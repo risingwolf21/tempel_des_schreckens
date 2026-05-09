@@ -1,4 +1,4 @@
-import { ArrowRight, Flame, Gem, Wind } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Flame, Gem, Wind } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ChamberCard } from './ChamberCard'
 import { useGame } from '@/context/GameContext'
@@ -17,6 +17,7 @@ export function RoundSummary() {
   const roundFire  = openedThisRound.filter(c => c.content === 'fire').length
   const roundEmpty = openedThisRound.filter(c => c.content === 'empty').length
 
+  const noGoldThisRound = roundGold === 0
   const isLastRound = room.currentRound >= 4
 
   return (
@@ -81,10 +82,20 @@ export function RoundSummary() {
           </span>
         </div>
 
+        {/* No-gold warning */}
+        {noGoldThisRound && (
+          <div className="rounded-xl border border-fire-500/40 bg-fire-950/20 px-4 py-3 flex items-center gap-3">
+            <AlertTriangle className="w-4 h-4 text-fire-400 shrink-0" />
+            <p className="text-sm text-fire-300">
+              No gold was found this round — <span className="font-semibold">Guardians win!</span>
+            </p>
+          </div>
+        )}
+
         {/* Continue */}
         <div className="flex justify-center">
-          <Button variant="gold" className="gap-2" onClick={continueRound}>
-            {isLastRound ? 'End game' : `Continue to Round ${room.currentRound + 1}`}
+          <Button variant={noGoldThisRound ? 'destructive' : 'gold'} className="gap-2" onClick={continueRound}>
+            {noGoldThisRound ? 'See results' : isLastRound ? 'End game' : `Continue to Round ${room.currentRound + 1}`}
             <ArrowRight className="w-4 h-4" />
           </Button>
         </div>
