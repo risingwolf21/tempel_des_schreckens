@@ -111,6 +111,7 @@ interface GameContextValue {
   revealDeclarations: () => void
   resetToLobby: () => void
   leaveRoom: () => void
+  continueRound: () => void
   resetGame: () => void
 }
 
@@ -416,10 +417,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
 
     const winResult = checkWinCondition(updatedRoom)
+    const roundOver = isRoundOver(updatedRoom)
     const finalRoom: Room = winResult
       ? { ...updatedRoom, status: 'ended', winner: winResult.winner, winCondition: winResult.condition }
-      : isRoundOver(updatedRoom)
-      ? advanceRound(updatedRoom)
+      : roundOver
+      ? { ...updatedRoom, status: 'round-summary' }
       : updatedRoom
 
     if (firebaseConfigured && db) {
@@ -427,30 +429,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
         [`rooms/${room.id}/chambers/${chamberId}/isOpened`]:            true,
         [`rooms/${room.id}/chambers/${chamberId}/openedInRound`]:       room.currentRound,
         [`rooms/${room.id}/chambers/${chamberId}/openedByKeyholderId`]: state.myPlayerId,
-        [`rooms/${room.id}/goldFound`]:                 goldFound,
-        [`rooms/${room.id}/fireFound`]:                 fireFound,
-        [`rooms/${room.id}/chambersOpenedThisRound`]:   finalRoom.chambersOpenedThisRound,
-        [`rooms/${room.id}/currentRound`]:              finalRoom.currentRound,
-        [`rooms/${room.id}/status`]:                    finalRoom.status,
+        [`rooms/${room.id}/goldFound`]:                                 goldFound,
+        [`rooms/${room.id}/fireFound`]:                                 fireFound,
+        [`rooms/${room.id}/chambersOpenedThisRound`]:                   chambersOpenedThisRound,
+        [`rooms/${room.id}/status`]:                                    finalRoom.status,
       }
       Object.values(updatedPlayers).forEach(p => {
         updates[`rooms/${room.id}/players/${p.id}/isKeyholder`] = p.isKeyholder
       })
       if (finalRoom.winner) {
-        updates[`rooms/${room.id}/winner`]        = finalRoom.winner
-        updates[`rooms/${room.id}/winCondition`]  = finalRoom.winCondition
-      }
-      // When the round rolls over: clear declarations, reset reveal flag, write redistributed ownerIds
-      if (finalRoom.currentRound !== room.currentRound || finalRoom.status === 'ended') {
-        updates[`rooms/${room.id}/declarations`] = null
-        updates[`rooms/${room.id}/declarationsRevealed`] = false
-      }
-      if (finalRoom.currentRound !== room.currentRound && finalRoom.status !== 'ended') {
-        Object.values(finalRoom.chambers).forEach(c => {
-          if (!c.isOpened) {
-            updates[`rooms/${room.id}/chambers/${c.id}/ownerId`] = c.ownerId
-          }
-        })
+        updates[`rooms/${room.id}/winner`]       = finalRoom.winner
+        updates[`rooms/${room.id}/winCondition`] = finalRoom.winCondition
       }
       void update(ref(db), updates)
     } else {
@@ -564,6 +553,38 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // ── continueRound ───────────────────────────────────────────────────────────
+  // Called from the round-summary screen to advance to the next round.
+
+  function continueRound() {
+    const room = state.room
+    if (!room || room.status !== 'round-summary') return
+    const nextRoom = advanceRound(room)
+
+    if (firebaseConfigured && db) {
+      const updates: Record<string, unknown> = {
+        [`rooms/${room.id}/status`]:                  nextRoom.status,
+        [`rooms/${room.id}/currentRound`]:            nextRoom.currentRound,
+        [`rooms/${room.id}/chambersOpenedThisRound`]: 0,
+        [`rooms/${room.id}/declarations`]:            null,
+        [`rooms/${room.id}/declarationsRevealed`]:    false,
+      }
+      if (nextRoom.status === 'ended') {
+        updates[`rooms/${room.id}/winner`]       = nextRoom.winner
+        updates[`rooms/${room.id}/winCondition`] = nextRoom.winCondition
+      } else {
+        Object.values(nextRoom.chambers).forEach(c => {
+          if (!c.isOpened) {
+            updates[`rooms/${room.id}/chambers/${c.id}/ownerId`] = c.ownerId
+          }
+        })
+      }
+      void update(ref(db), updates)
+    } else {
+      setState(prev => ({ ...prev, room: nextRoom }))
+    }
+  }
+
   // ── leaveRoom ────────────────────────────────────────────────────────────────
   // Non-host players leave; their player entry is removed from the room.
 
@@ -599,7 +620,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   return (
     <GameContext.Provider
-      value={{ state, createRoom, joinRoom, addDemoPlayer, startGame, confirmRole, openChamber, setDeclaration, revealDeclarations, resetToLobby, leaveRoom, resetGame }}
+      value={{ state, createRoom, joinRoom, addDemoPlayer, startGame, confirmRole, openChamber, setDeclaration, revealDeclarations, resetToLobby, leaveRoom, continueRound, resetGame }}
     >
       {children}
     </GameContext.Provider>

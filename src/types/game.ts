@@ -1,6 +1,6 @@
 export type Role = 'adventurer' | 'guardian'
 export type ChamberContent = 'gold' | 'fire' | 'empty'
-export type GameStatus = 'lobby' | 'role-reveal' | 'playing' | 'ended'
+export type GameStatus = 'lobby' | 'role-reveal' | 'playing' | 'round-summary' | 'ended'
 export type WinCondition = 'all-gold' | 'all-fire' | 'time-up'
 export type Team = 'adventurers' | 'guardians'
 
