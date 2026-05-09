@@ -280,24 +280,15 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, declarationsRevealed
       </div>
 
       {/* Chamber slots */}
-      <div className="flex flex-wrap gap-1">
-        {chambers.map(chamber => {
-          const clickable = declarationsRevealed && amKeyholder && !isMe
-          return (
-            <button
-              key={chamber.id}
-              disabled={!clickable}
-              onClick={() => clickable && onOpenChamber(chamber.id)}
-              className={`px-2 py-0.5 rounded border text-xs transition-colors ${
-                clickable
-                  ? 'border-gold-500/50 text-gold-300 bg-gold-950/20 hover:bg-gold-900/40 cursor-pointer'
-                  : 'border-border/30 text-muted-foreground/40 bg-transparent cursor-default'
-              }`}
-            >
-              ?
-            </button>
-          )
-        })}
+      <div className="flex flex-wrap gap-2">
+        {chambers.map(chamber => (
+          <ChamberCard
+            key={chamber.id}
+            chamber={chamber}
+            isClickable={declarationsRevealed && amKeyholder && !isMe}
+            onClick={() => onOpenChamber(chamber.id)}
+          />
+        ))}
         {chambers.length === 0 && (
           <span className="text-xs text-muted-foreground italic">No chambers remaining</span>
         )}
