@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { ChamberCard } from './ChamberCard'
-import { RevealOverlay } from './RevealOverlay'
+import { CardRevealAnimation } from './CardRevealAnimation'
 import { useGame } from '@/context/GameContext'
 import { getPlayerChambers } from '@/lib/gameLogic'
 import type { Chamber, Declaration, Player } from '@/types/game'
@@ -22,30 +22,42 @@ export function GameBoard() {
   const keyholder = players.find(p => p.isKeyholder)
   const declarationsRevealed = room.declarationsRevealed
   const declaredCount = Object.keys(room.declarations).length
+  const animatingId = revealedInfo?.chamber.id ?? null
   const openedThisRound = Object.values(room.chambers).filter(
-    c => c.isOpened && c.openedInRound === room.currentRound
+    c => c.isOpened && c.openedInRound === room.currentRound && c.id !== animatingId
   )
 
-  // Track newly opened chambers to trigger the reveal overlay
+  // Track newly opened chambers to trigger the reveal animation
   const trackedOpened = useRef<Set<string> | null>(null)
   if (trackedOpened.current === null) {
     trackedOpened.current = new Set(
       Object.values(room.chambers).filter(c => c.isOpened).map(c => c.id),
     )
   }
-  const [revealedInfo, setRevealedInfo] = useState<{ chamber: Chamber; playerName: string } | null>(null)
+  // Keyholder stores the clicked card's rect here before the Firebase round-trip
+  const pendingRevealRect = useRef<DOMRect | null>(null)
+  const [revealedInfo, setRevealedInfo] = useState<{
+    chamber: Chamber; playerName: string; startRect: DOMRect | null
+  } | null>(null)
 
   useEffect(() => {
     for (const c of Object.values(room.chambers)) {
       if (c.isOpened && !trackedOpened.current!.has(c.id)) {
         trackedOpened.current!.add(c.id)
         const owner = room.players[c.ownerId]
-        setRevealedInfo({ chamber: c, playerName: owner?.name ?? '?' })
+        const startRect = pendingRevealRect.current
+        pendingRevealRect.current = null
+        setRevealedInfo({ chamber: c, playerName: owner?.name ?? '?', startRect })
         break
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.chambers])
+
+  function handleOpenChamber(id: string, rect?: DOMRect) {
+    if (rect) pendingRevealRect.current = rect
+    openChamber(id)
+  }
 
   const goldPct = Math.round((room.goldFound / room.goldTotal) * 100)
 
@@ -212,7 +224,7 @@ export function GameBoard() {
               myPlayerId={myPlayerId}
               amKeyholder={amKeyholder}
               declarationsRevealed={declarationsRevealed}
-              onOpenChamber={openChamber}
+              onOpenChamber={handleOpenChamber}
               onSetDeclaration={setDeclaration}
             />
           ))}
@@ -244,12 +256,13 @@ export function GameBoard() {
         </div>
       </footer>
 
-      {/* Card reveal overlay */}
+      {/* Card reveal animation */}
       {revealedInfo && (
-        <RevealOverlay
+        <CardRevealAnimation
           chamber={revealedInfo.chamber}
           playerName={revealedInfo.playerName}
-          onDismiss={() => setRevealedInfo(null)}
+          startRect={revealedInfo.startRect}
+          onDone={() => setRevealedInfo(null)}
         />
       )}
     </div>
@@ -264,7 +277,7 @@ interface PlayerRowProps {
   myPlayerId: string
   amKeyholder: boolean
   declarationsRevealed: boolean
-  onOpenChamber: (id: string) => void
+  onOpenChamber: (id: string, rect?: DOMRect) => void
   onSetDeclaration: (d: Declaration) => void
 }
 
@@ -317,7 +330,7 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, declarationsRevealed
             key={chamber.id}
             chamber={chamber}
             isClickable={declarationsRevealed && amKeyholder && !isMe}
-            onClick={() => onOpenChamber(chamber.id)}
+            onClick={(e) => onOpenChamber(chamber.id, e.currentTarget.getBoundingClientRect())}
           />
         ))}
         {chambers.length === 0 && (
