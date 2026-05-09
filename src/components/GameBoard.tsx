@@ -1,4 +1,5 @@
-import { CheckCheck, Flame, Gem, KeyRound, LogOut, Shield, Sword, UserMinus, Wind } from 'lucide-react'
+import { useState } from 'react'
+import { CheckCheck, Flame, Gem, KeyRound, Lock, LogOut, Shield, Sword, UserMinus, Wind } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
@@ -9,7 +10,7 @@ import { getPlayerChambers } from '@/lib/gameLogic'
 import type { Declaration, Player } from '@/types/game'
 
 export function GameBoard() {
-  const { state, openChamber, setDeclaration, revealDeclarations, resetToLobby, leaveRoom } = useGame()
+  const { state, openChamber, setDeclaration, resetToLobby, leaveRoom } = useGame()
   const { room, myPlayerId } = state
   if (!room) return null
 
@@ -116,27 +117,16 @@ export function GameBoard() {
 
         {/* Phase banners */}
         {!declarationsRevealed ? (
-          <div className="rounded-xl border border-border/40 bg-card/40 px-4 py-3 space-y-2">
+          <div className="rounded-xl border border-border/40 bg-card/40 px-4 py-3">
             <div className="flex items-center gap-3">
-              <CheckCheck className="w-4 h-4 text-muted-foreground shrink-0" />
-              <p className="text-sm text-muted-foreground flex-1">
+              <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
+              <p className="text-sm text-muted-foreground">
                 <span className="text-foreground font-medium">Declaration phase</span>
-                {' '}— set your claims below. The host reveals all at once.
+                {' '}— set your claims and lock in. Reveals automatically when everyone is locked.
                 <span className="ml-2 text-xs">
-                  ({declaredCount}/{players.length} declared)
+                  ({declaredCount}/{players.length} locked)
                 </span>
               </p>
-              {amHost && (
-                <Button
-                  size="sm"
-                  variant="gold"
-                  className="shrink-0 gap-1.5 text-xs"
-                  onClick={revealDeclarations}
-                >
-                  <CheckCheck className="w-3.5 h-3.5" />
-                  Reveal All
-                </Button>
-              )}
             </div>
           </div>
         ) : (
@@ -252,6 +242,8 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, declarationsRevealed
   const isMe = player.id === myPlayerId
   const chambers = getPlayerChambers(room, player.id).filter(c => !c.isOpened)
   const declaration = room.declarations[player.id]
+  const isLocked = !!declaration
+  const [draft, setDraft] = useState<Declaration>({ gold: 0, fire: 0, empty: 0 })
 
   return (
     <div
@@ -314,12 +306,20 @@ function PlayerRow({ player, room, myPlayerId, amKeyholder, declarationsRevealed
       {/* Declaration row */}
       <div className="pt-2 border-t border-border/20">
         {isMe ? (
-          declarationsRevealed
+          isLocked
             ? <DeclarationDisplay declaration={declaration} playerName={player.name} locked />
-            : <DeclarationEditor
-                value={declaration ?? { gold: 0, fire: 0, empty: 0 }}
-                onChange={onSetDeclaration}
-              />
+            : <div className="flex items-center gap-3 flex-wrap">
+                <DeclarationEditor value={draft} onChange={setDraft} />
+                <Button
+                  size="sm"
+                  variant="gold"
+                  className="gap-1.5 text-xs shrink-0"
+                  onClick={() => onSetDeclaration(draft)}
+                >
+                  <Lock className="w-3 h-3" />
+                  Lock In
+                </Button>
+              </div>
         ) : (
           declarationsRevealed
             ? <DeclarationDisplay declaration={declaration} playerName={player.name} />

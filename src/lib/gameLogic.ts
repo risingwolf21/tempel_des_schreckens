@@ -161,6 +161,7 @@ export function advanceRound(room: Room): Room {
 
   return {
     ...redistributed,
+    status: 'playing',
     currentRound: nextRound,
     chambersOpenedThisRound: 0,
     declarations: {},
