@@ -6,9 +6,10 @@ import { Separator } from '@/components/ui/separator'
 import { useGame } from '@/context/GameContext'
 
 const WIN_CONDITION_LABELS: Record<string, string> = {
-  'all-gold':  'All Gold chambers were found!',
-  'all-fire':  'All Fire traps were triggered!',
-  'time-up':   'Four rounds passed without all Gold being found.',
+  'all-gold':      'All Gold chambers were found!',
+  'all-fire':      'All Fire traps were triggered!',
+  'time-up':       'Four rounds passed without all Gold being found.',
+  'no-gold-round': 'A round ended with no Gold found.',
 }
 
 export function EndScreen() {
