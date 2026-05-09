@@ -1,13 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CheckCheck, Flame, Gem, KeyRound, Lock, LogOut, Shield, Sword, UserMinus, Wind } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { ChamberCard } from './ChamberCard'
+import { RevealOverlay } from './RevealOverlay'
 import { useGame } from '@/context/GameContext'
 import { getPlayerChambers } from '@/lib/gameLogic'
-import type { Declaration, Player } from '@/types/game'
+import type { Chamber, Declaration, Player } from '@/types/game'
 
 export function GameBoard() {
   const { state, openChamber, setDeclaration, resetToLobby, leaveRoom } = useGame()
@@ -24,6 +25,27 @@ export function GameBoard() {
   const openedThisRound = Object.values(room.chambers).filter(
     c => c.isOpened && c.openedInRound === room.currentRound
   )
+
+  // Track newly opened chambers to trigger the reveal overlay
+  const trackedOpened = useRef<Set<string> | null>(null)
+  if (trackedOpened.current === null) {
+    trackedOpened.current = new Set(
+      Object.values(room.chambers).filter(c => c.isOpened).map(c => c.id),
+    )
+  }
+  const [revealedInfo, setRevealedInfo] = useState<{ chamber: Chamber; playerName: string } | null>(null)
+
+  useEffect(() => {
+    for (const c of Object.values(room.chambers)) {
+      if (c.isOpened && !trackedOpened.current!.has(c.id)) {
+        trackedOpened.current!.add(c.id)
+        const owner = room.players[c.ownerId]
+        setRevealedInfo({ chamber: c, playerName: owner?.name ?? '?' })
+        break
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.chambers])
 
   const goldPct = Math.round((room.goldFound / room.goldTotal) * 100)
 
@@ -221,6 +243,15 @@ export function GameBoard() {
           </div>
         </div>
       </footer>
+
+      {/* Card reveal overlay */}
+      {revealedInfo && (
+        <RevealOverlay
+          chamber={revealedInfo.chamber}
+          playerName={revealedInfo.playerName}
+          onDismiss={() => setRevealedInfo(null)}
+        />
+      )}
     </div>
   )
 }

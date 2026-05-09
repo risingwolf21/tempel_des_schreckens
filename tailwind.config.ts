@@ -96,12 +96,23 @@ const config: Config = {
           '0%, 100%': { boxShadow: '0 0 8px 2px var(--glow-color)' },
           '50%': { boxShadow: '0 0 20px 6px var(--glow-color)' },
         },
+        'pop-in': {
+          '0%':   { transform: 'scale(0.4)', opacity: '0' },
+          '70%':  { transform: 'scale(1.08)', opacity: '1' },
+          '100%': { transform: 'scale(1)',    opacity: '1' },
+        },
+        'fade-in': {
+          '0%':   { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         shimmer: 'shimmer 2s ease-in-out infinite',
         'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+        'pop-in': 'pop-in 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards',
+        'fade-in': 'fade-in 0.25s ease-out forwards',
       },
     },
   },
