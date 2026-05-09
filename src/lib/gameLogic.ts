@@ -9,16 +9,17 @@ import type {
   WinCondition,
 } from '@/types/game'
 
-// 5 cards per player; gold/fire counts unchanged, extra empties fill the rest
+// 5 cards per player. Role pool may exceed player count by 1 — the extra card is
+// silently discarded after shuffling, creating uncertainty about guardian count.
 const DISTRIBUTIONS: Record<number, PlayerDistribution> = {
-  3:  { adventurers: 2, guardians: 1, gold: 3,  fire: 1, empty: 11, total: 15 },
-  4:  { adventurers: 3, guardians: 1, gold: 4,  fire: 1, empty: 15, total: 20 },
-  5:  { adventurers: 4, guardians: 1, gold: 5,  fire: 1, empty: 19, total: 25 },
-  6:  { adventurers: 4, guardians: 2, gold: 6,  fire: 2, empty: 22, total: 30 },
-  7:  { adventurers: 5, guardians: 2, gold: 7,  fire: 2, empty: 26, total: 35 },
-  8:  { adventurers: 6, guardians: 2, gold: 8,  fire: 2, empty: 30, total: 40 },
-  9:  { adventurers: 6, guardians: 3, gold: 9,  fire: 3, empty: 33, total: 45 },
-  10: { adventurers: 7, guardians: 3, gold: 10, fire: 3, empty: 37, total: 50 },
+  3:  { adventurers: 2, guardians: 2, gold: 5,  fire: 2, empty: 8,  total: 15 },
+  4:  { adventurers: 3, guardians: 2, gold: 6,  fire: 2, empty: 12, total: 20 },
+  5:  { adventurers: 3, guardians: 2, gold: 7,  fire: 2, empty: 16, total: 25 },
+  6:  { adventurers: 4, guardians: 2, gold: 8,  fire: 2, empty: 20, total: 30 },
+  7:  { adventurers: 5, guardians: 3, gold: 7,  fire: 2, empty: 26, total: 35 },
+  8:  { adventurers: 6, guardians: 3, gold: 8,  fire: 2, empty: 30, total: 40 },
+  9:  { adventurers: 6, guardians: 3, gold: 9,  fire: 2, empty: 34, total: 45 },
+  10: { adventurers: 7, guardians: 4, gold: 10, fire: 3, empty: 37, total: 50 },
 }
 
 export function getDistribution(playerCount: number): PlayerDistribution {
