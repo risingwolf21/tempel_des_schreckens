@@ -28,7 +28,8 @@ export function LobbyScreen() {
   const dist = canStart ? getDistribution(playerCount) : null
 
   function copyCode() {
-    navigator.clipboard.writeText(room!.id).catch(() => {})
+    const url = `${window.location.origin}${window.location.pathname}?join=${room!.id}`
+    navigator.clipboard.writeText(url).catch(() => {})
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -60,15 +61,16 @@ export function LobbyScreen() {
 
         {/* Room code */}
         <div className="bg-card border border-border rounded-xl p-5 space-y-3">
-          <p className="text-xs text-muted-foreground text-center uppercase tracking-widest">Room Code</p>
-          <div className="flex items-center gap-3">
-            <div className="flex-1 text-center text-3xl font-mono font-bold tracking-[0.3em] text-gold-300 bg-background/50 rounded-lg py-3 border border-border/50">
-              {room.id}
-            </div>
-            <Button variant="outline" size="icon" onClick={copyCode} title="Copy room code">
-              {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
-            </Button>
-          </div>
+          <p className="text-xs text-muted-foreground text-center uppercase tracking-widest">Invite Link</p>
+          <Button variant="outline" className="w-full gap-2" onClick={copyCode}>
+            {copied
+              ? <><Check className="w-4 h-4 text-green-400" /> Link copied!</>
+              : <><Copy className="w-4 h-4" /> Copy invite link</>
+            }
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Room code: <span className="font-mono font-semibold text-gold-300 tracking-widest">{room.id}</span>
+          </p>
         </div>
 
         {/* Player list */}

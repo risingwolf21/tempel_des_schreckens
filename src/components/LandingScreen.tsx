@@ -12,9 +12,17 @@ export function LandingScreen() {
   const { state, createRoom, joinRoom } = useGame()
   const { isLoading, joinError } = state
 
-  const [mode, setMode] = useState<Mode>('create')
+  // Read invite code from URL once on mount, then clean the URL
+  const [inviteCode] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('join')?.trim().toUpperCase() ?? null
+    if (code) history.replaceState({}, '', window.location.pathname)
+    return code
+  })
+
+  const [mode, setMode] = useState<Mode>(inviteCode ? 'join' : 'create')
   const [name, setName] = useState('')
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState(inviteCode ?? '')
   const [error, setError] = useState('')
 
   function handleCreate() {
@@ -73,29 +81,37 @@ export function LandingScreen() {
         {/* Card */}
         <div className="bg-card border border-border rounded-xl p-6 space-y-5 shadow-2xl">
 
-          {/* Mode toggle */}
-          <div className="flex rounded-lg overflow-hidden border border-border">
-            <button
-              onClick={() => { setMode('create'); setError('') }}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${
-                mode === 'create'
-                  ? 'bg-gold-500/20 text-gold-300 border-r border-border'
-                  : 'text-muted-foreground hover:text-foreground border-r border-border'
-              }`}
-            >
-              Create Room
-            </button>
-            <button
-              onClick={() => { setMode('join'); setError('') }}
-              className={`flex-1 py-2 text-sm font-medium transition-colors ${
-                mode === 'join'
-                  ? 'bg-gold-500/20 text-gold-300'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Join Room
-            </button>
-          </div>
+          {inviteCode ? (
+            /* Invite link flow — just ask for a name */
+            <div className="space-y-1 text-center">
+              <p className="text-sm text-muted-foreground">You&apos;ve been invited to join room</p>
+              <p className="text-2xl font-mono font-bold tracking-[0.25em] text-gold-300">{inviteCode}</p>
+            </div>
+          ) : (
+            /* Mode toggle */
+            <div className="flex rounded-lg overflow-hidden border border-border">
+              <button
+                onClick={() => { setMode('create'); setError('') }}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                  mode === 'create'
+                    ? 'bg-gold-500/20 text-gold-300 border-r border-border'
+                    : 'text-muted-foreground hover:text-foreground border-r border-border'
+                }`}
+              >
+                Create Room
+              </button>
+              <button
+                onClick={() => { setMode('join'); setError('') }}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                  mode === 'join'
+                    ? 'bg-gold-500/20 text-gold-300'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Join Room
+              </button>
+            </div>
+          )}
 
           {/* Name field — shared */}
           <div className="space-y-2 text-left">
@@ -112,8 +128,8 @@ export function LandingScreen() {
             />
           </div>
 
-          {/* Join-only: room code field */}
-          {mode === 'join' && (
+          {/* Join-only: room code field (hidden when joining via invite link) */}
+          {mode === 'join' && !inviteCode && (
             <div className="space-y-2 text-left">
               <Label htmlFor="room-code" className="text-slate-300">Room code</Label>
               <Input
@@ -139,7 +155,7 @@ export function LandingScreen() {
           )}
 
           {/* CTA */}
-          {mode === 'create' ? (
+          {mode === 'create' && !inviteCode ? (
             <Button
               variant="gold"
               size="lg"
