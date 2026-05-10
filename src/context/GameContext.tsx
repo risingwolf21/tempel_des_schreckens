@@ -256,7 +256,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const updatedChamber: Chamber = {
         ...target, isOpened: true, openedInRound: room.currentRound, openedByKeyholderId: demoKeyholder.id,
       }
-      const lastGoldOwnerId = target.content === 'gold' ? target.ownerId : room.lastGoldOwnerId
+      const lastGoldOwnerId = target.content === 'gold' ? demoKeyholder.id : room.lastGoldOwnerId
       const updatedRoom: Room = {
         ...room, chambers: { ...room.chambers, [target.id]: updatedChamber },
         players: updatedPlayers, goldFound, fireFound, chambersOpenedThisRound, lastGoldOwnerId,
@@ -530,7 +530,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       openedByKeyholderId: state.myPlayerId,
     }
 
-    const lastGoldOwnerId = chamber.content === 'gold' ? chamber.ownerId : room.lastGoldOwnerId
+    const lastGoldOwnerId = chamber.content === 'gold' ? state.myPlayerId : room.lastGoldOwnerId
 
     const updatedRoom: Room = {
       ...room,
