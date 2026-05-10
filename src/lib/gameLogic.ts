@@ -100,6 +100,7 @@ export function buildInitialRoom(
     fireFound: 0,
     winner: null,
     winCondition: null,
+    lastGoldOwnerId: null,
   }
 }
 

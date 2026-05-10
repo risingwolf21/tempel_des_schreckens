@@ -94,6 +94,7 @@ function sanitizeRoom(raw: Partial<Room>): Room {
     fireFound: raw.fireFound ?? 0,
     winner: raw.winner ?? null,
     winCondition: raw.winCondition ?? null,
+    lastGoldOwnerId: raw.lastGoldOwnerId ?? null,
   }
 }
 
@@ -255,9 +256,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const updatedChamber: Chamber = {
         ...target, isOpened: true, openedInRound: room.currentRound, openedByKeyholderId: demoKeyholder.id,
       }
+      const lastGoldOwnerId = target.content === 'gold' ? target.ownerId : room.lastGoldOwnerId
       const updatedRoom: Room = {
         ...room, chambers: { ...room.chambers, [target.id]: updatedChamber },
-        players: updatedPlayers, goldFound, fireFound, chambersOpenedThisRound,
+        players: updatedPlayers, goldFound, fireFound, chambersOpenedThisRound, lastGoldOwnerId,
       }
       const winResult = checkWinCondition(updatedRoom)
       const roundOver = isRoundOver(updatedRoom)
@@ -273,6 +275,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           [`rooms/${room.id}/goldFound`]:               goldFound,
           [`rooms/${room.id}/fireFound`]:               fireFound,
           [`rooms/${room.id}/chambersOpenedThisRound`]: chambersOpenedThisRound,
+          [`rooms/${room.id}/lastGoldOwnerId`]:         lastGoldOwnerId,
           [`rooms/${room.id}/status`]:                  finalRoom.status,
         }
         Object.values(updatedPlayers).forEach(p => {
@@ -323,6 +326,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       fireFound: 0,
       winner: null,
       winCondition: null,
+      lastGoldOwnerId: null,
     }
 
     if (firebaseConfigured && db) {
@@ -526,6 +530,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       openedByKeyholderId: state.myPlayerId,
     }
 
+    const lastGoldOwnerId = chamber.content === 'gold' ? chamber.ownerId : room.lastGoldOwnerId
+
     const updatedRoom: Room = {
       ...room,
       chambers: { ...room.chambers, [chamberId]: updatedChamber },
@@ -533,6 +539,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       goldFound,
       fireFound,
       chambersOpenedThisRound,
+      lastGoldOwnerId,
     }
 
     const winResult = checkWinCondition(updatedRoom)
@@ -551,6 +558,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         [`rooms/${room.id}/goldFound`]:                                 goldFound,
         [`rooms/${room.id}/fireFound`]:                                 fireFound,
         [`rooms/${room.id}/chambersOpenedThisRound`]:                   chambersOpenedThisRound,
+        [`rooms/${room.id}/lastGoldOwnerId`]:                           lastGoldOwnerId,
         [`rooms/${room.id}/status`]:                                    finalRoom.status,
       }
       Object.values(updatedPlayers).forEach(p => {
@@ -637,6 +645,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         [`rooms/${room.id}/fireFound`]:                0,
         [`rooms/${room.id}/winner`]:                   null,
         [`rooms/${room.id}/winCondition`]:             null,
+        [`rooms/${room.id}/lastGoldOwnerId`]:          null,
       }
       Object.values(room.players).forEach(p => {
         updates[`rooms/${room.id}/players/${p.id}/role`]          = null
@@ -667,6 +676,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           fireFound: 0,
           winner: null,
           winCondition: null,
+          lastGoldOwnerId: null,
         },
       } : prev)
     }
@@ -703,19 +713,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     const nextRoom = advanceRound(room)
 
+    // The keyholder for the next round is the owner of the last gold revealed this round
+    const nextKeyholderPlayerId = room.lastGoldOwnerId ?? Object.values(room.players).find(p => p.isKeyholder)?.id
+    const adjustedPlayers = { ...nextRoom.players }
+    Object.values(adjustedPlayers).forEach(p => {
+      adjustedPlayers[p.id] = { ...p, isKeyholder: p.id === nextKeyholderPlayerId }
+    })
+    const adjustedRoom: Room = { ...nextRoom, players: adjustedPlayers, lastGoldOwnerId: null }
+
     if (firebaseConfigured && db) {
       const updates: Record<string, unknown> = {
-        [`rooms/${room.id}/status`]:                  nextRoom.status,
-        [`rooms/${room.id}/currentRound`]:            nextRoom.currentRound,
+        [`rooms/${room.id}/status`]:                  adjustedRoom.status,
+        [`rooms/${room.id}/currentRound`]:            adjustedRoom.currentRound,
         [`rooms/${room.id}/chambersOpenedThisRound`]: 0,
         [`rooms/${room.id}/declarations`]:            null,
         [`rooms/${room.id}/declarationsRevealed`]:    false,
+        [`rooms/${room.id}/lastGoldOwnerId`]:         null,
       }
-      if (nextRoom.status === 'ended') {
-        updates[`rooms/${room.id}/winner`]       = nextRoom.winner
-        updates[`rooms/${room.id}/winCondition`] = nextRoom.winCondition
+      Object.values(adjustedPlayers).forEach(p => {
+        updates[`rooms/${room.id}/players/${p.id}/isKeyholder`] = p.isKeyholder
+      })
+      if (adjustedRoom.status === 'ended') {
+        updates[`rooms/${room.id}/winner`]       = adjustedRoom.winner
+        updates[`rooms/${room.id}/winCondition`] = adjustedRoom.winCondition
       } else {
-        Object.values(nextRoom.chambers).forEach(c => {
+        Object.values(adjustedRoom.chambers).forEach(c => {
           if (!c.isOpened) {
             updates[`rooms/${room.id}/chambers/${c.id}/ownerId`] = c.ownerId
           }
@@ -723,7 +745,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       void update(ref(db), updates)
     } else {
-      setState(prev => ({ ...prev, room: nextRoom }))
+      setState(prev => ({ ...prev, room: adjustedRoom }))
     }
   }
 
