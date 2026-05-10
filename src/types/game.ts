@@ -45,6 +45,7 @@ export interface Room {
   fireFound: number
   winner: Team | null
   winCondition: WinCondition | null
+  lastGoldOwnerId: string | null
 }
 
 export interface AppState {
